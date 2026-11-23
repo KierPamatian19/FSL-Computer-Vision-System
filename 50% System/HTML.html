@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Computer Vision-Based Recognition of Filipino Sign Language Gestures</title>
+  <meta name="description" content="A computer vision study on recognizing Filipino Sign Language (FSL) gestures from a standard camera using MediaPipe hand landmarks.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Literata:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="CSS Tepora.css">
+  <script src="Camera,"></script>
+  <script src="JS.txt"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top">FSL Recognition Study</a>
+    <nav aria-label="Sections">
+      <a href="#background">Background</a>
+      <a href="#how">How it works</a>
+      <a href="#live">Try it live</a>
+      <a href="#contribution">Contribution</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-text">
+        <h1>Computer Vision-Based Recognition of Filipino Sign Language Gestures</h1>
+        <p class="lead">A system that reads Filipino Sign Language gestures through a standard camera, using hand landmark data from MediaPipe. No special sensors or wearable devices needed.</p>
+        <div class="actions">
+          <a class="btn primary" href="#background">Read the introduction</a>
+          <a class="btn" href="#how">See how it works</a>
+        </div>
+      </div>
+
+      <figure class="hand-panel">
+        <canvas id="hand" aria-label="Animated hand skeleton showing the 21 landmarks MediaPipe detects" role="img"></canvas>
+        <figcaption>
+          <p id="readout" class="readout" aria-live="polite">Hover or tap a joint to see its landmark.</p>
+          <div class="poses" role="group" aria-label="Sample hand poses">
+            <button type="button" data-pose="open" aria-pressed="true">Open hand</button>
+            <button type="button" data-pose="fist" aria-pressed="false">Fist</button>
+            <button type="button" data-pose="point" aria-pressed="false">Point</button>
+            <button type="button" data-pose="peace" aria-pressed="false">Two fingers</button>
+            <button type="button" data-pose="thumb" aria-pressed="false">Thumb out</button>
+          </div>
+          <p class="note">Illustrative poses only. They show the 21 landmarks per hand, not specific FSL signs.</p>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="background" class="section">
+      <h2>Why communication access matters</h2>
+      <div class="prose">
+        <p>Communication is an essential part of human life. It lets people express thoughts, needs, emotions, and ideas. For Deaf and hard-of-hearing individuals, sign language is a primary means of communication.</p>
+        <p>In the Philippines, Filipino Sign Language (FSL) is the language of the Filipino Deaf community. It is recognized as the national sign language under the FSL Act (Republic Act No. 11106).</p>
+        <p>According to Montefalco (2022), the Filipino deaf community continues to lag behind a fast-paced, technology-driven society. FSL has contributed to better communication for deaf people. However, the majority of the population in the Philippines does not understand FSL.</p>
+      </div>
+      <dl class="facts">
+        <div><dt>National sign language</dt><dd>Filipino Sign Language, recognized under Republic Act No. 11106</dd></div>
+        <div><dt>Main barrier</dt><dd>Most people in the Philippines do not understand FSL</dd></div>
+      </dl>
+    </section>
+
+    <section id="how" class="section">
+      <h2>How the system works</h2>
+      <p class="intro">This study develops and evaluates a computer vision-based system for recognizing FSL gestures. Select a stage to see what happens at each step.</p>
+
+      <div class="pipeline">
+        <ol class="stages" role="tablist" aria-label="Recognition pipeline">
+          <li><button role="tab" id="tab-0" aria-selected="true" aria-controls="panel" data-i="0">Camera input</button></li>
+          <li><button role="tab" id="tab-1" aria-selected="false" aria-controls="panel" data-i="1" tabindex="-1">Hand landmarks</button></li>
+          <li><button role="tab" id="tab-2" aria-selected="false" aria-controls="panel" data-i="2" tabindex="-1">Gesture classifier</button></li>
+          <li><button role="tab" id="tab-3" aria-selected="false" aria-controls="panel" data-i="3" tabindex="-1">Recognized gesture</button></li>
+        </ol>
+        <div id="panel" class="stage-panel" role="tabpanel" aria-labelledby="tab-0" tabindex="0"></div>
+      </div>
+    </section>
+
+    <section id="live" class="section">
+      <h2>Try it live</h2>
+      <p class="intro">Teach the page a gesture, then sign it again and watch it get recognized. Hand tracking runs in your browser, and your camera video is never uploaded.</p>
+
+      <ol class="steps">
+        <li><strong>Start the camera.</strong> Allow access and wait for the hand model to load.</li>
+        <li><strong>Teach a gesture.</strong> Type a name, press Record, and hold the sign steady for a few seconds.</li>
+        <li><strong>Sign it to recognize it.</strong> Hold a taught gesture and it is added to the transcript.</li>
+      </ol>
+
+      <div class="live">
+        <div class="live-main">
+          <div class="stage">
+            <video id="cam" playsinline muted></video>
+            <canvas id="cam-overlay"></canvas>
+            <p id="cam-empty" class="cam-empty">Camera is off</p>
+            <p id="count" class="count" hidden></p>
+          </div>
+          <div class="live-controls">
+            <button type="button" id="cam-toggle" class="btn primary">Start camera</button>
+            <p id="cam-status" role="status" aria-live="polite">Ready. Your browser will ask for camera permission.</p>
+          </div>
+          <p class="tip">For steadier tracking, face the camera with light on your hands, keep your whole hand in view, and sign slowly. This demo recognizes only the gestures you teach it here. It is not the trained FSL model from the study.</p>
+        </div>
+
+        <div class="live-side">
+          <div class="result" aria-live="polite">
+            <p class="side-title">Recognized gesture</p>
+            <p id="res-label" class="res-label">&mdash;</p>
+            <div class="bar" aria-hidden="true"><span id="res-bar"></span></div>
+            <p id="res-conf" class="small">Teach at least one gesture to begin.</p>
+          </div>
+
+          <div class="panel">
+            <p class="side-title">Transcript</p>
+            <p id="transcript" class="transcript">Recognized gestures appear here.</p>
+            <div class="row">
+              <button type="button" id="tr-space" class="mini">Add space</button>
+              <button type="button" id="tr-clear" class="mini">Clear</button>
+              <label class="check"><input type="checkbox" id="speak"> Speak aloud</label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <p class="side-title">Teach a gesture</p>
+            <div class="row">
+              <label for="label-in" class="sr">Gesture name</label>
+              <input id="label-in" type="text" maxlength="20" placeholder="Name, e.g. A or Salamat" autocomplete="off">
+              <button type="button" id="rec" class="mini solid">Record 40 samples</button>
+            </div>
+            <ul id="labels" class="labels"></ul>
+            <div class="row">
+              <button type="button" id="exp" class="mini">Export</button>
+              <button type="button" id="imp" class="mini">Import</button>
+              <button type="button" id="wipe" class="mini">Clear all</button>
+              <input type="file" id="imp-file" accept="application/json" hidden>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="contribution" class="section alt">
+      <h2>What this study contributes</h2>
+      <div class="cards">
+        <article>
+          <h3>To future work</h3>
+          <p>Provides a foundation for more advanced FSL recognition technologies that promote inclusive communication.</p>
+        </article>
+        <article>
+          <h3>To accessibility</h3>
+          <p>Can serve as a complementary tool that supports communication, education, and accessibility for the Filipino Deaf community.</p>
+        </article>
+      </div>
+      <p class="scope">This system is not intended to replace human sign language interpreters or reduce the importance of learning FSL.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Computer Vision-Based Recognition of Filipino Sign Language Gestures</p>
+    <p>Cavite State University, Imus Campus &middot; BS Computer Science</p>
+  </footer>
+
+  <script src="script.js"></script>
+  <script src="camera.js"></script>
+</body>
+</html>

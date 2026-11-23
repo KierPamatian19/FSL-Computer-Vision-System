@@ -1,0 +1,210 @@
+/* ---------- Hand landmark visual ---------- */
+const NAMES = ['Wrist','Thumb CMC','Thumb MCP','Thumb IP','Thumb tip',
+  'Index MCP','Index PIP','Index DIP','Index tip',
+  'Middle MCP','Middle PIP','Middle DIP','Middle tip',
+  'Ring MCP','Ring PIP','Ring DIP','Ring tip',
+  'Pinky MCP','Pinky PIP','Pinky DIP','Pinky tip'];
+const TIPS = [4, 8, 12, 16, 20];
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+// curl per finger: thumb, index, middle, ring, pinky (0 = straight, 1 = fully curled)
+const POSES = {
+  open:  [0, 0, 0, 0, 0],
+  fist:  [.85, 1, 1, 1, 1],
+  point: [.9, 0, 1, 1, 1],
+  peace: [.9, 0, 0, 1, 1],
+  thumb: [0, 1, 1, 1, 1]
+};
+const FINGERS = [
+  { base: [-0.30, 1.00], tilt: -5, len: [0.38, 0.24, 0.20] },
+  { base: [-0.05, 1.08], tilt: 0,  len: [0.42, 0.27, 0.22] },
+  { base: [ 0.20, 1.00], tilt: 5,  len: [0.38, 0.25, 0.20] },
+  { base: [ 0.42, 0.85], tilt: 12, len: [0.30, 0.19, 0.17] }
+];
+const rad = d => d * Math.PI / 180;
+
+function buildHand(c) {
+  const pts = [{ x: 0, y: 0, z: 0 }];
+  // thumb: bends sideways across the palm
+  let p = { x: -0.42, y: 0.28 }, a = -40;
+  pts.push({ ...p, z: 0 });
+  const tl = [0.30, 0.25, 0.22], tb = [50, 35, 25];
+  for (let j = 0; j < 3; j++) {
+    a += c[0] * tb[j] + (j === 0 ? 0 : 0);
+    p = { x: p.x + tl[j] * Math.sin(rad(a)), y: p.y + tl[j] * Math.cos(rad(a)) };
+    pts.push({ ...p, z: 0 });
+  }
+  // other fingers: curl toward the camera, so tips fold back toward the knuckles
+  FINGERS.forEach((f, i) => {
+    const k = c[i + 1], bends = [85, 100, 60];
+    let y = f.base[1], z = 0, theta = 0, run = 0;
+    pts.push({ x: f.base[0], y, z });
+    for (let j = 0; j < 3; j++) {
+      theta += k * bends[j];
+      const dy = f.len[j] * Math.cos(rad(theta));
+      z += f.len[j] * Math.sin(rad(theta));
+      y += dy; run += dy;
+      pts.push({ x: f.base[0] + run * Math.sin(rad(f.tilt)), y, z });
+    }
+  });
+  return pts;
+}
+
+const canvas = document.getElementById('hand');
+const ctx = canvas.getContext('2d');
+const readout = document.getElementById('readout');
+const poseBtns = document.querySelectorAll('.poses button');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let w = 0, h = 0, dpr = 1;
+let curls = POSES.open.slice();
+let target = POSES.open.slice();
+let screenPts = [], hover = -1, pinned = -1;
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  w = r.width; h = r.height;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function draw() {
+  const pts = buildHand(curls);
+  const scale = Math.min(w / 1.7, h / 2.25);
+  const ox = w / 2, oy = h - h * 0.07;
+  screenPts = pts.map(p => ({ x: ox + p.x * scale, y: oy - p.y * scale, z: p.z }));
+
+  ctx.clearRect(0, 0, w, h);
+
+  // bounding box, like a hand detector's output
+  const xs = screenPts.map(p => p.x), ys = screenPts.map(p => p.y);
+  const pad = 14;
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = 'rgba(242,178,48,.7)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(Math.min(...xs) - pad, Math.min(...ys) - pad,
+    Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2);
+  ctx.setLineDash([]);
+
+  // bones
+  ctx.strokeStyle = 'rgba(255,255,255,.6)';
+  ctx.lineWidth = 3; ctx.lineCap = 'round';
+  BONES.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(screenPts[a].x, screenPts[a].y);
+    ctx.lineTo(screenPts[b].x, screenPts[b].y);
+    ctx.stroke();
+  });
+
+  // joints
+  screenPts.forEach((p, i) => {
+    const tip = TIPS.includes(i);
+    const r = (tip ? 7 : 5) + p.z * 4;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(r, 3), 0, Math.PI * 2);
+    ctx.fillStyle = tip ? '#F2B230' : (i === 0 ? '#C8372D' : '#8FB1F2');
+    ctx.fill();
+    if (i === hover || i === pinned) {
+      ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff';
+      ctx.beginPath(); ctx.arc(p.x, p.y, r + 6, 0, Math.PI * 2); ctx.stroke();
+    }
+  });
+}
+
+function showReadout(i) {
+  if (i < 0) {
+    readout.textContent = 'Hover or tap a joint to see its landmark.';
+    return;
+  }
+  const p = screenPts[i];
+  readout.innerHTML = `<strong>Landmark ${i}: ${NAMES[i]}</strong><br>x ${(p.x / w).toFixed(2)} · y ${(p.y / h).toFixed(2)} · z ${(-p.z * 0.1).toFixed(2)}`;
+}
+
+function nearest(ev) {
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left, y = ev.clientY - r.top;
+  let best = -1, bd = 22 * 22;
+  screenPts.forEach((p, i) => {
+    const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+canvas.addEventListener('pointermove', e => {
+  const i = nearest(e);
+  if (i !== hover) { hover = i; showReadout(i >= 0 ? i : pinned); draw(); }
+});
+canvas.addEventListener('pointerleave', () => { hover = -1; showReadout(pinned); draw(); });
+canvas.addEventListener('click', e => { pinned = nearest(e); showReadout(pinned); draw(); });
+
+/* pose switching + smooth animation */
+let raf = null, autoTimer = null, autoIndex = 0;
+const order = Object.keys(POSES);
+
+function animate() {
+  let moving = false;
+  for (let i = 0; i < 5; i++) {
+    const d = target[i] - curls[i];
+    if (Math.abs(d) > 0.002) { curls[i] += d * 0.14; moving = true; } else curls[i] = target[i];
+  }
+  draw();
+  if (hover >= 0 || pinned >= 0) showReadout(hover >= 0 ? hover : pinned);
+  raf = moving ? requestAnimationFrame(animate) : null;
+}
+
+function setPose(name) {
+  target = POSES[name].slice();
+  poseBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pose === name)));
+  if (reduceMotion) { curls = target.slice(); draw(); }
+  else if (!raf) raf = requestAnimationFrame(animate);
+}
+
+poseBtns.forEach(b => b.addEventListener('click', () => {
+  clearInterval(autoTimer);          // user took control, stop auto-cycling
+  setPose(b.dataset.pose);
+}));
+
+if (!reduceMotion) {
+  autoTimer = setInterval(() => {
+    autoIndex = (autoIndex + 1) % order.length;
+    setPose(order[autoIndex]);
+  }, 2600);
+}
+new ResizeObserver(resize).observe(canvas);
+resize();
+
+/* ---------- Pipeline tabs ---------- */
+const STAGES = [
+  { title: 'Camera input',
+    text: 'Gestures are captured through visual input from a standard camera. The system does not rely on specialized sensors or wearable devices, so anyone with a camera can use it.' },
+  { title: 'Hand landmarks',
+    text: 'MediaPipe extracts hand landmark data from each frame. These landmarks are points on the hand and fingers, like the 21 shown at the top of this page.' },
+  { title: 'Gesture classifier',
+    text: 'The system is trained on the hand landmark data to classify Filipino Sign Language gestures. This study develops and evaluates that classifier.' },
+  { title: 'Recognized gesture',
+    text: 'The classifier outputs the FSL gesture it recognizes, giving a more appropriate approach for the Philippine setting than systems built for other sign languages.' }
+];
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+const panel = document.getElementById('panel');
+
+function selectStage(i, focus) {
+  tabs.forEach((t, n) => {
+    t.setAttribute('aria-selected', String(n === i));
+    t.tabIndex = n === i ? 0 : -1;
+  });
+  panel.setAttribute('aria-labelledby', 'tab-' + i);
+  panel.innerHTML = `<h3>${STAGES[i].title}</h3><p>${STAGES[i].text}</p>`;
+  panel.classList.remove('swap'); void panel.offsetWidth; panel.classList.add('swap');
+  if (focus) tabs[i].focus();
+}
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => selectStage(i));
+  t.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); selectStage((i + 1) % tabs.length, true); }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); selectStage((i + tabs.length - 1) % tabs.length, true); }
+  });
+});
+selectStage(0);
